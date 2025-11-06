@@ -1,0 +1,321 @@
+{
+  "name": "Restaurant Management Multi-Tenant (READY)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "23ed6cad-a469-446c-bccd-fe294d0f1839",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-128, 1376],
+      "id": "webhook-entry",
+      "name": "Webhook",
+      "webhookId": "23ed6cad-a469-446c-bccd-fe294d0f1839"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app4f09d4qu9atKpR",
+          "mode": "list",
+          "cachedResultName": "Test resto"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTKT7GbxxQRVfTD",
+          "mode": "list",
+          "cachedResultName": "Restaurants"
+        },
+        "filterByFormula": "={API Key} = \"{{ $json.headers['x-api-key'] }}\"",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [80, 1376],
+      "id": "search-restaurant",
+      "name": "Search Restaurant by API Key",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Fac7T7u6CjQblRHs",
+          "name": "test resto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const restaurants = $input.all();\n\nif (restaurants.length === 0) {\n  throw new Error(\"❌ API Key invalide\");\n}\n\nconst restaurant = restaurants[0].json;\nconst fields = restaurant.fields || restaurant;\n\nif (fields.Actif === false) {\n  throw new Error(\"❌ Restaurant désactivé\");\n}\n\nconst webhookData = $('Webhook').first().json;\n\nreturn [{\n  json: {\n    restaurant_id: restaurant.id,\n    restaurant_name: fields['Nom Restaurant'] || fields.Nom || '',\n    chatInput: webhookData.body?.message || webhookData.body?.chatInput || '',\n    originalBody: webhookData.body,\n    originalHeaders: webhookData.headers\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [304, 1360],
+      "id": "extract-restaurant-id",
+      "name": "Extract Restaurant ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// GLOBAL ERROR HANDLER & CONTEXT MANAGER\n// ============================================\n\nconst input = $input.first().json;\n\n// Validation du restaurant_id\nconst restaurantId = input.restaurant_id;\nconst restaurantName = input.restaurant_name || '';\n\nif (!restaurantId) {\n  console.error('❌ Restaurant ID manquant dans le contexte');\n  throw new Error('Restaurant non identifié - API Key invalide ou restaurant inactif');\n}\n\n// Créer un contexte global réutilisable\nconst globalContext = {\n  // Identité du restaurant\n  restaurant_id: restaurantId,\n  restaurant_name: restaurantName,\n\n  // Données de la requête\n  originalRequest: input.originalBody || {},\n  originalHeaders: input.originalHeaders || {},\n  chatInput: input.chatInput || '',\n\n  // Métadonnées\n  timestamp: new Date().toISOString(),\n  requestId: `${restaurantId}_${Date.now()}`,\n\n  // Pour le debugging\n  debug: {\n    nodeExecuted: 'Global Error Handler',\n    executionTime: new Date().toISOString()\n  }\n};\n\nconsole.log(`✅ [${restaurantName}] Contexte initialisé - Request ID: ${globalContext.requestId}`);\nconsole.log(`📝 Message utilisateur: \"${globalContext.chatInput}\"`);\n\nreturn [{\n  json: globalContext\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [528, 1360],
+      "id": "global-error-handler",
+      "name": "Global Error Handler"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "audio-condition",
+                    "leftValue": "={{ $json.originalRequest.audio }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "voice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.chatInput }}",
+                    "rightValue": "plat du jour",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains",
+                      "singleValue": true
+                    },
+                    "id": "plat-condition"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texte"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "image-condition",
+                    "leftValue": "={{ $json.originalRequest.image }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "photo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [752, 1360],
+      "id": "switch-input-type",
+      "name": "Switch Input Type"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app4f09d4qu9atKpR",
+          "mode": "list",
+          "cachedResultName": "Test resto"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblNYFxq1SoepyjAh",
+          "mode": "list",
+          "cachedResultName": "Employés"
+        },
+        "filterByFormula": "={Restaurant} = '{{ $('Global Error Handler').item.json.restaurant_id }}'",
+        "returnAll": false,
+        "options": {
+          "fields": ["Nom", "Rôle", "E-mail", "Restaurant"]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [2432, 1424],
+      "id": "get-employes-filtered",
+      "name": "Get Employees (Filtered)",
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Fac7T7u6CjQblRHs",
+          "name": "test resto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Récupérer les dates du premier nœud\nconst dates = $('Code in JavaScript').first().json;\n\n// Récupérer tous les employés du nœud Airtable\nconst employees = $('Get Employees (Filtered)').all().map(item => ({\n  nom: item.json.Nom,\n  role: item.json.Rôle\n}));\n\n// Retourner l'objet combiné avec restaurant_id\nreturn {\n  ...dates,\n  employees: employees,\n  employeesList: employees.map(emp => `- ${emp.nom} (${emp.role})`).join('\\n'),\n  restaurant_id: $('Global Error Handler').item.json.restaurant_id\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2720, 1424],
+      "id": "combine-data",
+      "name": "Combine Planning Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validation avant création planning\nconst restaurantId = $('Global Error Handler').item.json.restaurant_id;\nconst planningData = $input.all();\n\nif (!restaurantId) {\n  console.error('❌ Restaurant ID manquant pour création planning');\n  throw new Error('Impossible de créer le planning : Restaurant non identifié');\n}\n\nif (!planningData || planningData.length === 0) {\n  console.error('❌ Aucune donnée de planning à créer');\n  throw new Error('Aucune donnée de planning reçue');\n}\n\nconsole.log(`✅ [${restaurantId}] Validation OK - ${planningData.length} entrées à créer`);\n\n// Ajouter le restaurant_id à chaque entrée\nconst enrichedData = planningData.map((entry, index) => {\n  return {\n    json: {\n      ...entry.json,\n      Restaurant: [restaurantId],\n      CreatedBy: 'n8n_automation',\n      CreatedAt: new Date().toISOString()\n    },\n    pairedItem: { item: index }\n  };\n});\n\nreturn enrichedData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3520, 1328],
+      "id": "validate-planning",
+      "name": "Validate Before Create Planning"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app4f09d4qu9atKpR",
+          "mode": "list",
+          "cachedResultName": "Test resto"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQHhKlNhgVSNdJw",
+          "mode": "list",
+          "cachedResultName": "Planning Optimisé"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Service": "={{ $json.Service }}",
+            "Employes": "={{ $json.Employes }}",
+            "Restaurant": "={{ $json.Restaurant }}",
+            "Statut": "Planifié"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "typecast": true
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [3744, 1232],
+      "id": "create-planning",
+      "name": "Create Planning (Multi-Tenant)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Fac7T7u6CjQblRHs",
+          "name": "test resto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gestion succès création planning\nconst restaurantId = $('Global Error Handler').item.json.restaurant_id;\nconst createdRecords = $input.all();\n\nif (!createdRecords || createdRecords.length === 0) {\n  console.warn('⚠️ Aucun enregistrement créé');\n  return [{\n    json: {\n      success: true,\n      count: 0,\n      message: 'Aucun enregistrement créé',\n      restaurantId: restaurantId\n    }\n  }];\n}\n\nconst recordIds = createdRecords.map(r => r.json.id).filter(Boolean);\n\nconsole.log(`✅ [${restaurantId}] ${createdRecords.length} entrées de planning créées`);\n\nconst logData = {\n  restaurant_id: restaurantId,\n  logType: 'SUCCESS',\n  endpoint: 'create_planning',\n  message: `${createdRecords.length} entrées de planning créées avec succès`,\n  responseData: JSON.stringify({\n    count: createdRecords.length,\n    ids: recordIds\n  }),\n  timestamp: new Date().toISOString(),\n  duration: 0\n};\n\nreturn [{\n  json: {\n    success: true,\n    count: createdRecords.length,\n    records: createdRecords.map(r => r.json),\n    _log: logData\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3968, 1232],
+      "id": "handle-planning-success",
+      "name": "Handle Planning Success"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [4192, 1232],
+      "id": "respond-success",
+      "name": "Respond Success"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Search Restaurant by API Key", "type": "main", "index": 0 }]]
+    },
+    "Search Restaurant by API Key": {
+      "main": [[{ "node": "Extract Restaurant ID", "type": "main", "index": 0 }]]
+    },
+    "Extract Restaurant ID": {
+      "main": [[{ "node": "Global Error Handler", "type": "main", "index": 0 }]]
+    },
+    "Global Error Handler": {
+      "main": [[{ "node": "Switch Input Type", "type": "main", "index": 0 }]]
+    },
+    "Switch Input Type": {
+      "main": [
+        [],
+        [{ "node": "Get Employees (Filtered)", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Get Employees (Filtered)": {
+      "main": [[{ "node": "Combine Planning Data", "type": "main", "index": 0 }]]
+    },
+    "Combine Planning Data": {
+      "main": [[{ "node": "Validate Before Create Planning", "type": "main", "index": 0 }]]
+    },
+    "Validate Before Create Planning": {
+      "main": [[{ "node": "Create Planning (Multi-Tenant)", "type": "main", "index": 0 }]]
+    },
+    "Create Planning (Multi-Tenant)": {
+      "main": [[{ "node": "Handle Planning Success", "type": "main", "index": 0 }]]
+    },
+    "Handle Planning Success": {
+      "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-01T00:00:00.000Z",
+  "versionId": "multi-tenant-v1"
+}

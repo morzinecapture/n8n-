@@ -1,0 +1,178 @@
+{
+  "name": "Restaurant Multi-Tenant - TEST MINIMAL",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-multitenant",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "webhook-test",
+      "name": "Webhook Test",
+      "webhookId": "test-multitenant-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app4f09d4qu9atKpR",
+          "mode": "list",
+          "cachedResultName": "Test resto"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTKT7GbxxQRVfTD",
+          "mode": "list",
+          "cachedResultName": "Restaurants"
+        },
+        "filterByFormula": "={API Key} = \"{{ $json.headers['x-api-key'] }}\"",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [460, 300],
+      "id": "search-restaurant-test",
+      "name": "Find Restaurant",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Fac7T7u6CjQblRHs",
+          "name": "test resto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const restaurants = $input.all();\n\nif (restaurants.length === 0) {\n  return [{\n    json: {\n      success: false,\n      error: \"API Key invalide\",\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconst restaurant = restaurants[0].json;\nconst fields = restaurant.fields || restaurant;\n\nif (fields.Actif === false) {\n  return [{\n    json: {\n      success: false,\n      error: \"Restaurant désactivé\",\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconst webhookData = $('Webhook Test').first().json;\n\nreturn [{\n  json: {\n    restaurant_id: restaurant.id,\n    restaurant_name: fields['Nom Restaurant'] || fields.Nom || '',\n    message: webhookData.body?.message || '',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "id": "validate-test",
+      "name": "Validate Restaurant"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app4f09d4qu9atKpR",
+          "mode": "list",
+          "cachedResultName": "Test resto"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblNYFxq1SoepyjAh",
+          "mode": "list",
+          "cachedResultName": "Employés"
+        },
+        "filterByFormula": "={Restaurant} = '{{ $json.restaurant_id }}'",
+        "options": {
+          "fields": ["Nom", "Rôle", "E-mail"]
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [900, 300],
+      "id": "get-employees-test",
+      "name": "Get Employees (Filtered)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Fac7T7u6CjQblRHs",
+          "name": "test resto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const restaurant = $('Validate Restaurant').first().json;\nconst employees = $input.all();\n\nreturn [{\n  json: {\n    success: true,\n    restaurant: {\n      id: restaurant.restaurant_id,\n      name: restaurant.restaurant_name\n    },\n    employees: employees.map(emp => ({\n      nom: emp.json.Nom,\n      role: emp.json.Rôle,\n      email: emp.json['E-mail']\n    })),\n    count: employees.length,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "id": "format-response-test",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1340, 300],
+      "id": "respond-test",
+      "name": "Respond"
+    }
+  ],
+  "connections": {
+    "Webhook Test": {
+      "main": [
+        [
+          {
+            "node": "Find Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Validate Restaurant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Restaurant": {
+      "main": [
+        [
+          {
+            "node": "Get Employees (Filtered)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Employees (Filtered)": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-06T00:00:00.000Z",
+  "versionId": "test-v1"
+}

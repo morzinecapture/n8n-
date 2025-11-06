@@ -1,0 +1,86 @@
+{
+  "name": "Restaurant Management - Multi-Tenant READY",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "23ed6cad-a469-446c-bccd-fe294d0f1839",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-128, 1376],
+      "id": "838a2369-dd54-4b0d-bf85-b976f4d0e0ce",
+      "name": "Webhook",
+      "webhookId": "23ed6cad-a469-446c-bccd-fe294d0f1839"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app4f09d4qu9atKpR",
+          "mode": "list",
+          "cachedResultName": "Test resto",
+          "cachedResultUrl": "https://airtable.com/app4f09d4qu9atKpR"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblTKT7GbxxQRVfTD",
+          "mode": "list",
+          "cachedResultName": "Restaurants",
+          "cachedResultUrl": "https://airtable.com/app4f09d4qu9atKpR/tblTKT7GbxxQRVfTD"
+        },
+        "filterByFormula": "={API Key} = \"{{ $json.headers['x-api-key'] }}\"",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [80, 1376],
+      "id": "1549429c-05b7-4789-8a7d-2b3a34ab3ddb",
+      "name": "Search Restaurant by API Key",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "Fac7T7u6CjQblRHs",
+          "name": "test resto"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const restaurants = $input.all();\n\nif (restaurants.length === 0) {\n  throw new Error(\"❌ API Key invalide\");\n}\n\nconst restaurant = restaurants[0].json;\nconst fields = restaurant.fields || restaurant;\n\nif (fields.Actif === false) {\n  throw new Error(\"❌ Restaurant désactivé\");\n}\n\nconst webhookData = $('Webhook').first().json;\n\nreturn [{\n  json: {\n    restaurant_id: restaurant.id,\n    restaurant_name: fields['Nom Restaurant'] || fields.Nom || '',\n    chatInput: webhookData.body?.message || webhookData.body?.chatInput || '',\n    originalBody: webhookData.body,\n    originalHeaders: webhookData.headers\n  }\n}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [304, 1360],
+      "id": "19bde283-19d4-450b-a013-ee706345464e",
+      "name": "Extract Restaurant ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst restaurantId = input.restaurant_id;\nconst restaurantName = input.restaurant_name || '';\n\nif (!restaurantId) {\n  console.error('❌ Restaurant ID manquant');\n  throw new Error('Restaurant non identifié');\n}\n\nconst globalContext = {\n  restaurant_id: restaurantId,\n  restaurant_name: restaurantName,\n  originalRequest: input.originalBody || {},\n  originalHeaders: input.originalHeaders || {},\n  chatInput: input.chatInput || '',\n  timestamp: new Date().toISOString(),\n  requestId: `${restaurantId}_${Date.now()}`\n};\n\nconsole.log(`✅ [${restaurantName}] Contexte initialisé`);\n\nreturn [{ json: globalContext }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [528, 1360],
+      "id": "global-error-handler-new",
+      "name": "Global Error Handler"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Search Restaurant by API Key", "type": "main", "index": 0}]]
+    },
+    "Search Restaurant by API Key": {
+      "main": [[{"node": "Extract Restaurant ID", "type": "main", "index": 0}]]
+    },
+    "Extract Restaurant ID": {
+      "main": [[{"node": "Global Error Handler", "type": "main", "index": 0}]]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
